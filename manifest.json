@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "ShipCube Lead Importer",
+  "version": "1.1.0",
+  "description": "Reads Apollo CSV exports from a folder, sorts every row into the right strategy by industry, and uploads each batch on the Outreach Hub Import Leads page.",
+  "minimum_chrome_version": "116",
+  "permissions": ["storage", "sidePanel", "tabs", "scripting"],
+  "host_permissions": ["https://outreachhub.shipcubeai.com/*"],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    { "matches": ["https://outreachhub.shipcubeai.com/*"], "js": ["content.js"], "run_at": "document_idle" }
+  ],
+  "action": { "default_title": "ShipCube Lead Importer - open the panel" },
+  "side_panel": { "default_path": "sidepanel.html" },
+  "icons": { "48": "icon48.png", "128": "icon128.png" }
+}

@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ShipCube Lead Importer</title><link rel="stylesheet" href="sidepanel.css"></head>
+<body>
+<header><h1>Lead Importer</h1><span id="ver">v1.1</span><button id="theme" title="Switch light / dark">Theme</button></header>
+
+<section>
+  <h2>1 · Folder</h2>
+  <button id="pick" class="primary">Pick folder with Apollo CSVs…</button>
+  <input id="folderInput" type="file" webkitdirectory multiple hidden>
+  <div id="folderInfo" class="muted">No folder yet.</div>
+  <progress id="prog" value="0" max="1" hidden></progress>
+</section>
+
+<section>
+  <h2>2 · Settings</h2>
+  <div class="grid">
+    <label>Country <input id="country" value="China"></label>
+    <label>Max rows / upload <input id="maxRows" type="number" min="100" max="20000" value="2500"></label>
+    <label class="wide">Tags <input id="tags" value="apollo.io"></label>
+    <label>Unmapped industry → <select id="unmapped"></select></label>
+    <label>Pause between uploads (s) <input id="delay" type="number" min="1" max="120" value="5"></label>
+  </div>
+  <div class="modes">
+    <label><input type="radio" name="layout" value="file" checked> <b>One strategy per file</b> – upload each CSV as-is</label>
+    <label><input type="radio" name="layout" value="split"> Split rows by industry (also removes duplicates)</label>
+  </div>
+  <label class="muted" id="presetRow"><input type="checkbox" id="usePreset" checked> Use my file → strategy table (otherwise auto-detect from industries)</label>
+  <div class="checks">
+    <div class="muted">Only for “Split rows” mode:</div>
+    <label><input type="checkbox" id="dedupe" checked> Remove duplicate websites (across all files)</label>
+    <label><input type="checkbox" id="dropNoSite" checked> Drop rows with no website</label>
+    <label><input type="checkbox" id="skipOther" checked> Skip rows from other countries</label>
+    <label><input type="checkbox" id="skipFilter" checked> Tick “Skip strategy filter”</label>
+    <label><input type="checkbox" id="autoScrape"> Tick “Auto-scrape missing emails”</label>
+  </div>
+  <div class="modes">
+    <label><input type="radio" name="mode" value="preview" checked> Preview, then I confirm each upload</label>
+    <label><input type="radio" name="mode" value="auto"> Fully automatic (Preview not needed)</label>
+  </div>
+  <label class="dry"><input type="checkbox" id="dry"> <b>Dry run</b> – fill everything and press <i>Preview First</i>, but <b>never press Import</b></label>
+  <details><summary>Industry → strategy mapping (editable)</summary>
+    <textarea id="mapText" rows="10" spellcheck="false"></textarea>
+    <div class="row"><button id="applyMap">Apply &amp; re-analyze</button><button id="resetMap">Reset to default</button></div>
+    <div class="muted">One per line: <code>industry = Strategy name</code> (no country suffix).</div>
+  </details>
+</section>
+
+<section>
+  <h2>3 · Plan</h2>
+  <div id="summary" class="muted">Pick a folder to see the plan.</div>
+  <div id="tableWrap"></div>
+</section>
+
+<section>
+  <h2>4 · Upload</h2>
+  <div class="row">
+    <button id="check">Check Import page</button>
+    <button id="start" class="primary" disabled>Start</button>
+    <button id="stop" disabled>Stop</button>
+  </div>
+  <div id="confirmBox" hidden>
+    <div id="confirmText"></div>
+    <div class="row"><button id="confirmGo" class="primary">Confirm import</button><button id="confirmSkip">Skip this one</button></div>
+  </div>
+  <div class="row small"><button id="clearLog">Forget finished uploads</button><span id="doneInfo" class="muted"></span></div>
+  <pre id="log"></pre>
+</section>
+<script src="core.js"></script><script src="sidepanel.js"></script>
+</body></html>
