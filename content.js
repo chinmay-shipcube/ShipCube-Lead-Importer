@@ -67,6 +67,7 @@
       const tm = setTimeout(finish, timeoutMs);
     });
   }
+  // only real failure messages count ("0 errors" in a preview must not stop a run)
   const looksFailed = t => /(import failed|upload failed|failed to|could not|unable to|something went wrong|exception|unauthori[sz]ed|forbidden|denied|invalid csv|invalid file|no valid)/i.test(t);
 
   /* ----- form pieces ----- */
@@ -100,14 +101,14 @@
   const OPTION_SEL = '[role=option],.option,.ts-dropdown .option,.select2-results__option,.choices__item--choice,.dropdown-item,li';
   const TRIGGER_SEL = '[role=combobox],.ts-control,.select2-selection,.choices,.dropdown-toggle,button[aria-haspopup],[class*=select],input[type=text]';
 
-  // The Outreach Hub strategy picker: a host <div> holding [trigger div][search textbox][option <div>s with no role/class]
+  // Outreach Hub strategy picker: widget = [trigger div][panel div: search box + option divs]
   function strategyParts() {
     const label = findLabel('Assign to strategy');
     if (!label) return null;
     const search = after(label, 'input[placeholder*="earch"]');
     if (search && search.parentElement) {
-      const host = search.parentElement;                 // dropdown panel: search box + option divs
-      const root = host.parentElement;                   // widget: [trigger][panel]
+      const host = search.parentElement;
+      const root = host.parentElement;
       const trigger = host.previousElementSibling || (root && [...root.children].find(c => c !== host)) || host.firstElementChild;
       return { label, host, search, trigger, native: null };
     }
@@ -137,7 +138,6 @@
   async function pickStrategy(want) {
     let parts = strategyParts();
     if (!parts) return { ok: false, error: '"Assign to strategy" field not found' };
-    const wantBase = norm(want).split(' - ')[0];
     const shownOk = () => { const p = strategyParts(); return p && norm(displayedStrategy(p)).includes(norm(want)); };
     if (shownOk()) return { ok: true, shown: displayedStrategy(parts) };
     if (parts.native) {
@@ -159,7 +159,7 @@
     }
     const p = strategyParts();
     const seen = optionEls(p).map(e => txt(e)).slice(0, 6).join(' | ');
-    return { ok: false, error: 'Could not select "' + want + '" (picker shows "' + displayedStrategy(p) + '"; options seen: ' + (seen || 'none') + ')' };
+    return { ok: false, error: 'Could not select "' + want + '" (picker shows "' + displayedStrategy(p).slice(0, 60) + '"; options seen: ' + (seen || 'none') + ')' };
   }
 
   async function readStrategyOptions() {
@@ -174,11 +174,41 @@
     return { kind: parts.host ? 'custom list' : 'custom widget', options: [...new Set(opts)] };
   }
 
+  /* ----- clicking Preview / Import ----- */
+  async function waitEnabled(find, ms) {
+    const t0 = Date.now(); let b = find();
+    while (b && b.disabled && Date.now() - t0 < ms) { await sleep(500); b = find(); }
+    return b;
+  }
+  async function click(which, m, shown) {
+    const find = () => which === 'import' ? buttonByText('import', true) : buttonByText('preview first', false);
+    const name = which === 'import' ? 'Import' : 'Preview First';
+    let btn = await waitEnabled(find, 90000);              // the page keeps the button disabled while it reads/validates the file
+    if (!btn) return { ok: false, error: name + ' button not found' };
+    if (btn.disabled && which === 'import') {
+      // some builds only enable Import after a successful preview: run it, then wait again
+      const pv = buttonByText('preview first', false);
+      if (pv && !pv.disabled) {
+        const w0 = watch(60000); fireClick(pv); await w0;
+        btn = await waitEnabled(find, 60000);
+      }
+    }
+    if (!btn) return { ok: false, error: name + ' button not found' };
+    if (btn.disabled) return { ok: false, error: name + ' button stayed disabled for 90s (file still being read, or the form is not valid)' };
+    try { btn.scrollIntoView({ block: 'center' }); } catch {}
+    const w = watch(m.timeoutMs || 120000);
+    fireClick(btn);
+    const text = await w;
+    if (!text) return { ok: false, error: 'No response from the page after clicking ' + which, message: '' };
+    if (looksFailed(text)) return { ok: false, error: 'Page reported a problem', message: text };
+    return { ok: true, message: text, shown };
+  }
+
   /* ----- operations ----- */
   async function fill(m) {
     const steps = [];
-    const done = (o) => Object.assign(o, { steps });
-    if (!location.pathname.replace(/\/+$/, '').endsWith('/import')) return { ok: false, error: 'Open the Import Leads page first (you are on ' + location.pathname + ')' };
+    const done = o => Object.assign(o, { steps });
+    if (!location.pathname.replace(/\/+$/, '').endsWith('/import')) return done({ ok: false, error: 'Open the Import Leads page first (you are on ' + location.pathname + ')' });
     if (!setFile(m.csv, m.filename)) return done({ ok: false, error: 'File upload box not found' });
     steps.push('file set');
     await sleep(500);
@@ -186,7 +216,7 @@
     steps.push('country ' + m.country);
     await sleep(900);                                   // strategy list re-filters after country change
     r = await pickStrategy(m.strategy); if (!r.ok) return done(r);
-    steps.push('strategy shows "' + (r.shown || '?') + '"');
+    steps.push('strategy shows "' + (r.shown || '?').replace(/▾/g, '').trim() + '"');
     const auto = checkboxFor('Auto-scrape'); if (auto) setCheckbox(auto, !!m.autoscrape); steps.push('auto-scrape box ' + (auto ? 'found' : 'MISSING'));
     const skip = checkboxFor('Skip strategy filter'); if (skip) setCheckbox(skip, !!m.skip); steps.push('skip-filter box ' + (skip ? 'found' : 'MISSING'));
     const tags = [...document.querySelectorAll('input[type=text],input:not([type])')].find(i => /apollo|tag/i.test(i.placeholder || '') && visible(i));
@@ -194,22 +224,10 @@
     if (!document.body.innerText.includes(m.filename)) await sleep(1500);
     if (!document.body.innerText.includes(m.filename)) return done({ ok: false, error: 'File was not accepted by the page (name not shown)' });
     if (!m.click) return done({ ok: true, message: 'Form filled', shown: r.shown });
-
-    // dry run can only ever press Preview, never Import
+    // a dry run can only ever press Preview, never Import
     const which = m.dry ? 'preview' : m.click;
     steps.push('pressing ' + (which === 'import' ? 'Import' : 'Preview First') + (m.dry ? ' (dry run: Import blocked)' : ''));
     return done(await click(which, m, r.shown));
-  }
-  async function click(which, m, shown) {
-    const btn = which === 'import' ? buttonByText('import', true) : buttonByText('preview first', false);
-    if (!btn) return { ok: false, error: (which === 'import' ? 'Import' : 'Preview First') + ' button not found' };
-    if (btn.disabled) return { ok: false, error: (which === 'import' ? 'Import' : 'Preview First') + ' button is disabled (form not valid yet?)' };
-    const w = watch(m.timeoutMs || 120000);
-    fireClick(btn);
-    const text = await w;
-    if (!text) return { ok: false, error: 'No response from the page after clicking ' + which, message: '' };
-    if (looksFailed(text)) return { ok: false, error: 'Page reported a problem', message: text };
-    return { ok: true, message: text, shown };
   }
 
   async function scan(m) {
@@ -228,7 +246,7 @@
       : m.type === 'fill' ? fill(m)
       : m.type === 'import' ? (m.dry ? Promise.resolve({ ok: false, error: 'Dry run: Import is blocked' }) : click('import', m))
       : Promise.resolve({ ok: false, error: 'unknown message' });
-    run.then(send).catch(e => send({ ok: false, error: String(e && e.message || e) }));
+    run.then(send).catch(e => send({ ok: false, error: String((e && e.message) || e) }));
     return true;
   });
 })();

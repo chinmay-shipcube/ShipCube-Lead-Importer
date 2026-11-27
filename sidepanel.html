@@ -2,7 +2,7 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ShipCube Lead Importer</title><link rel="stylesheet" href="sidepanel.css"></head>
 <body>
-<header><h1>Lead Importer</h1><span id="ver">v1.1</span><button id="theme" title="Switch light / dark">Theme</button></header>
+<header><h1>Lead Importer</h1><span id="ver">v1.2</span><button id="theme" title="Switch light / dark">Theme</button></header>
 
 <section>
   <h2>1 · Folder</h2>
@@ -16,8 +16,8 @@
   <h2>2 · Settings</h2>
   <div class="grid">
     <label>Country <input id="country" value="China"></label>
-    <label>Max rows / upload <input id="maxRows" type="number" min="100" max="20000" value="2500"></label>
-    <label class="wide">Tags <input id="tags" value="apollo.io"></label>
+    <label>Max rows / upload (split mode) <input id="maxRows" type="number" min="100" max="20000" value="2500"></label>
+    <label class="wide">Tags <input id="tags" value=""></label>
     <label>Unmapped industry → <select id="unmapped"></select></label>
     <label>Pause between uploads (s) <input id="delay" type="number" min="1" max="120" value="5"></label>
   </div>
@@ -25,18 +25,20 @@
     <label><input type="radio" name="layout" value="file" checked> <b>One strategy per file</b> – upload each CSV as-is</label>
     <label><input type="radio" name="layout" value="split"> Split rows by industry (also removes duplicates)</label>
   </div>
-  <label class="muted" id="presetRow"><input type="checkbox" id="usePreset" checked> Use my file → strategy table (otherwise auto-detect from industries)</label>
+  <label class="muted" id="presetRow"><input type="checkbox" id="usePreset" checked> Use my file → strategy table (untick for new batches: auto-detect from industries)</label>
   <div class="checks">
     <div class="muted">Only for “Split rows” mode:</div>
     <label><input type="checkbox" id="dedupe" checked> Remove duplicate websites (across all files)</label>
     <label><input type="checkbox" id="dropNoSite" checked> Drop rows with no website</label>
     <label><input type="checkbox" id="skipOther" checked> Skip rows from other countries</label>
+  </div>
+  <div class="checks">
     <label><input type="checkbox" id="skipFilter" checked> Tick “Skip strategy filter”</label>
     <label><input type="checkbox" id="autoScrape"> Tick “Auto-scrape missing emails”</label>
   </div>
   <div class="modes">
     <label><input type="radio" name="mode" value="preview" checked> Preview, then I confirm each upload</label>
-    <label><input type="radio" name="mode" value="auto"> Fully automatic (Preview not needed)</label>
+    <label><input type="radio" name="mode" value="auto"> Fully automatic (presses Import by itself)</label>
   </div>
   <label class="dry"><input type="checkbox" id="dry"> <b>Dry run</b> – fill everything and press <i>Preview First</i>, but <b>never press Import</b></label>
   <details><summary>Industry → strategy mapping (editable)</summary>
@@ -57,13 +59,18 @@
   <div class="row">
     <button id="check">Check Import page</button>
     <button id="start" class="primary" disabled>Start</button>
+    <button id="pause" disabled>⏸ Pause</button>
     <button id="stop" disabled>Stop</button>
   </div>
   <div id="confirmBox" hidden>
     <div id="confirmText"></div>
     <div class="row"><button id="confirmGo" class="primary">Confirm import</button><button id="confirmSkip">Skip this one</button></div>
   </div>
-  <div class="row small"><button id="clearLog">Forget finished uploads</button><span id="doneInfo" class="muted"></span></div>
+  <div id="errBox" hidden>
+    <div id="errText"></div>
+    <div class="row"><button id="errRetry" class="primary">Retry this file</button><button id="errSkip">Skip file</button><button id="errMark" hidden>Mark as uploaded</button><button id="errStop">Stop</button></div>
+  </div>
+  <div class="row small"><button id="clearLog">Forget ALL finished uploads</button><span id="doneInfo" class="muted"></span></div>
   <pre id="log"></pre>
 </section>
 <script src="core.js"></script><script src="sidepanel.js"></script>
